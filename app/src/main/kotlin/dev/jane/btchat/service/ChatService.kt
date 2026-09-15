@@ -67,22 +67,26 @@ class ChatService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        if (!hasBluetoothPermission(this)) {
+            stopSelf()
+            return
+        }
         startForeground(
             Notifications.ID_SERVICE,
             Notifications.service(this, "Starting", true),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
         )
         LinkStateHolder.serviceRunning.value = true
-        if (!hasBluetoothPermission(this)) {
-            stopSelf()
-            return
-        }
         scope.launch { boot() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun boot() {
         val app = App.get(this)
+        if (!app.settings.stayConnected.first() && !ChatVisibility.appInForeground.value) {
+            stopSelf()
+            return
+        }
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
         if (adapter == null) {
             stopSelf()
@@ -93,6 +97,22 @@ class ChatService : Service() {
         engine = e
 
         scope.launch { link.state.collect { LinkStateHolder.state.value = it } }
+
+        // Stay connected off and the chat not visible means the service has no reason
+        // to run; stop it whether that combination is true now or becomes true later.
+        scope.launch {
+            combine(app.settings.stayConnected, ChatVisibility.appInForeground) { stay, inForeground ->
+                stay || inForeground
+            }.collect { keepRunning -> if (!keepRunning) stopSelf() }
+        }
+
+        // A visible chat for the active peer means its unread messages are already seen;
+        // drop the message notification instead of leaving it stale.
+        scope.launch {
+            combine(app.settings.activePeer, ChatVisibility.visiblePeer, ChatVisibility.appInForeground) { active, visible, inForeground ->
+                active != null && active == visible && inForeground
+            }.collect { chatVisible -> if (chatVisible) Notifications.cancelMessage(this@ChatService) }
+        }
 
         val peerNick = app.settings.activePeer.flatMapLatest { peer ->
             if (peer == null) flowOf(null) else app.db.peers().observe(peer)
@@ -120,11 +140,11 @@ class ChatService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_TOGGLE_STAY) {
+            // Whether this needs to stop the service is decided in one place: the
+            // stayConnected/appInForeground collector started in boot().
             scope.launch {
                 val settings = App.get(this@ChatService).settings
-                val on = !settings.stayConnected.first()
-                settings.setStayConnected(on)
-                if (!on && !ChatVisibility.appInForeground.value) stopSelf()
+                settings.setStayConnected(!settings.stayConnected.first())
             }
         }
         return START_STICKY

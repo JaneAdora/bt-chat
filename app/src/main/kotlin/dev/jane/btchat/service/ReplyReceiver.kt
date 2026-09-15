@@ -1,8 +1,10 @@
 package dev.jane.btchat.service
 
+import android.app.ForegroundServiceStartNotAllowedException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.RemoteInput
 import dev.jane.btchat.App
 import dev.jane.btchat.store.Direction
@@ -10,6 +12,7 @@ import dev.jane.btchat.store.Kind
 import dev.jane.btchat.store.MessageEntity
 import dev.jane.btchat.store.MessageIds
 import dev.jane.btchat.store.Status
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -22,7 +25,8 @@ class ReplyReceiver : BroadcastReceiver() {
         val text = RemoteInput.getResultsFromIntent(intent)
             ?.getCharSequence(Notifications.KEY_REPLY)?.toString()?.trim().orEmpty()
         val result = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        val handler = CoroutineExceptionHandler { _, e -> Log.w(TAG, "reply handling failed", e) }
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
                 val app = App.get(context)
                 val now = System.currentTimeMillis()
@@ -40,10 +44,18 @@ class ReplyReceiver : BroadcastReceiver() {
                     app.db.messages().markInboundRead(peer, unread, now, app.settings.sendReadReceipts.first())
                 }
                 Notifications.cancelMessage(context)
-                ChatService.start(context)
+                try {
+                    ChatService.start(context)
+                } catch (e: ForegroundServiceStartNotAllowedException) {
+                    Log.w(TAG, "foreground service start not allowed", e)
+                }
             } finally {
                 result.finish()
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "ReplyReceiver"
     }
 }
