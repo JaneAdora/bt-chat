@@ -19,9 +19,10 @@ import dev.jane.btchat.store.Settings
 import dev.jane.btchat.store.Status
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -70,9 +71,11 @@ class ChatEngineTest {
     }
 
     @After
-    fun tearDown() {
+    fun tearDown() = runBlocking {
         engine.stop()
-        scope.cancel()
+        // Join, not just cancel: let in-flight collectors actually finish so they don't
+        // log "connection is closed" stack traces against an already-closed db.
+        scope.coroutineContext[Job]?.cancelAndJoin()
         db.close()
     }
 
@@ -289,6 +292,13 @@ class ChatEngineTest {
         startAndConnect()
         engine.stop()
         assertEquals(LinkState.Off, link.state.value)
+    }
+
+    @Test
+    fun `stale sent rows from a prior run are requeued on start`() = runBlocking {
+        db.messages().insert(queuedText(60, 10).copy(status = Status.SENT))
+        engine.start(peer)
+        awaitUntil(what = "requeued on start") { db.messages().get(60, peer)!!.status == Status.QUEUED }
     }
 
     @Test

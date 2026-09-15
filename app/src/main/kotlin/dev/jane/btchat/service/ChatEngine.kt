@@ -1,5 +1,6 @@
 package dev.jane.btchat.service
 
+import android.util.Log
 import dev.jane.btchat.link.Link
 import dev.jane.btchat.link.LinkState
 import dev.jane.btchat.protocol.Bodies
@@ -17,8 +18,10 @@ import dev.jane.btchat.store.MessageEntity
 import dev.jane.btchat.store.PeerEntity
 import dev.jane.btchat.store.Settings
 import dev.jane.btchat.store.Status
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -53,7 +56,7 @@ class ChatEngine(
     @Volatile private var peer: String? = null
     private var mainJob: Job? = null
     private var sessionJob: Job? = null
-    private val reader = FrameReader()
+    @Volatile private var reader = FrameReader()
     private val stateMutex = Mutex()
 
     fun start(peerAddress: String) {
@@ -61,8 +64,19 @@ class ChatEngine(
         peer = peerAddress
         link.start(peerAddress)
         mainJob = scope.launch {
+            // Rows left SENT by a stop() or a process kill must go back to QUEUED
+            // before the first connection of this session, or they are lost.
+            db.messages().requeueSent(peerAddress)
             launch { readLoop() }
-            link.state.collect { st -> stateMutex.withLock { onStateChanged(st) } }
+            link.state.collect { st ->
+                try {
+                    stateMutex.withLock { onStateChanged(st) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "onStateChanged failed for $peerAddress", e)
+                }
+            }
         }
     }
 
@@ -77,10 +91,15 @@ class ChatEngine(
 
     private suspend fun onStateChanged(state: LinkState) {
         val p = peer ?: return
-        sessionJob?.cancel()
+        // Join, not just cancel: an in-flight markSent from the old session's drainQueue
+        // must finish (or be cancelled cleanly) before we requeue, or the requeue can be
+        // clobbered by a write that lands after it.
+        sessionJob?.cancelAndJoin()
         sessionJob = null
-        reader.reset()
         if (state is LinkState.Connected) {
+            // Fresh reader per session: the old one is never touched again, so there is
+            // no shared mutable buffer for readLoop and this state collector to race on.
+            reader = FrameReader()
             keepalive.reset(clock())
             sessionJob = scope.launch {
                 try {
@@ -118,6 +137,7 @@ class ChatEngine(
                     link.dropConnection()
                     return@collect
                 } catch (e: IOException) {
+                    link.dropConnection()
                     return@collect
                 }
             }
@@ -140,8 +160,8 @@ class ChatEngine(
                 val body = Bodies.decodeText(frame.body)
                 val message = inboundRow(frame.id, p, Kind.TEXT, body.ts, text = body.text)
                 val fresh = db.messages().insert(message) != -1L
-                sendFrame(Frames.ack(frame.id))
                 if (fresh) listener.onInbound(message)
+                sendFrame(Frames.ack(frame.id))
             }
             FrameType.PHOTO -> {
                 val body = Bodies.decodePhoto(frame.body)
@@ -229,5 +249,9 @@ class ChatEngine(
                 }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "ChatEngine"
     }
 }
