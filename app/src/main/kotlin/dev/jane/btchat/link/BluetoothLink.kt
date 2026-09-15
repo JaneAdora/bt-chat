@@ -333,6 +333,13 @@ class BluetoothLink(
         val publish: LinkState? = synchronized(lock) {
             if (active !== conn) return@synchronized null
             active = null
+            // Drop any tail bytes left in the channel from this dead session; feeding
+            // them to the next session's fresh FrameReader would corrupt its first
+            // frame. Only safe here, inside the lock, where active === conn proves
+            // this is the real teardown and not a superseded/tie-break-losing
+            // connection whose replacement readLoop may already be live on the
+            // same channel.
+            while (inboundChannel.tryReceive().isSuccess) { }
             when {
                 peer == null -> null
                 !adapter.isEnabled -> LinkState.Off
@@ -340,9 +347,6 @@ class BluetoothLink(
             }
         }
         conn.socket.closeQuietly()
-        // Drop any tail bytes left in the channel from the dead session; feeding them
-        // to the next session's fresh FrameReader would corrupt its first frame.
-        while (inboundChannel.tryReceive().isSuccess) { }
         val next = publish ?: return
         _state.value = next
         if (next is LinkState.Searching && dialJob?.isActive != true) {
