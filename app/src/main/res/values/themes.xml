@@ -1,0 +1,9 @@
+<resources>
+    <!-- android:Theme.DeviceDefault.DayNight.NoActionBar is absent from the
+         android-37.0 framework in this SDK; DayNight has no NoActionBar
+         variant here, so it is applied explicitly. -->
+    <style name="Theme.BtChat" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+</resources>
