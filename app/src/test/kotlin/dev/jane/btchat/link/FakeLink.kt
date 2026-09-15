@@ -26,6 +26,7 @@ class FakeLink : Link {
     @Volatile var failSends = false
     @Volatile var dropped = 0
     @Volatile var startedWith: String? = null
+    private var connectSession = 0
 
     override suspend fun send(bytes: ByteArray) {
         if (failSends || state.value !is LinkState.Connected) throw IOException("not connected")
@@ -50,7 +51,8 @@ class FakeLink : Link {
     }
 
     fun connect(peer: String) {
-        stateFlow.value = LinkState.Connected(peer)
+        connectSession++
+        stateFlow.value = LinkState.Connected(peer, connectSession)
     }
 
     fun disconnect() {

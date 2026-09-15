@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 sealed interface LinkState {
     data object Off : LinkState
     data object Searching : LinkState
-    data class Connected(val peerAddress: String) : LinkState
+    data class Connected(val peerAddress: String, val session: Int = 0) : LinkState
 }
 
 /**
