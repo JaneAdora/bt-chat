@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 
 class FakeLink : Link {
     val stateFlow = MutableStateFlow<LinkState>(LinkState.Off)
@@ -18,7 +19,7 @@ class FakeLink : Link {
     private val inboundChannel = Channel<ByteArray>(Channel.UNLIMITED)
     override val inbound: Flow<ByteArray> = inboundChannel.receiveAsFlow()
 
-    val sent = mutableListOf<ByteArray>()
+    val sent = CopyOnWriteArrayList<ByteArray>()
     private val sentReader = FrameReader()
     private val sentFrameList = mutableListOf<Frame>()
 
@@ -28,8 +29,8 @@ class FakeLink : Link {
 
     override suspend fun send(bytes: ByteArray) {
         if (failSends || state.value !is LinkState.Connected) throw IOException("not connected")
-        synchronized(sent) {
-            sent += bytes
+        sent += bytes
+        synchronized(sentFrameList) {
             sentFrameList += sentReader.feed(bytes)
         }
     }
@@ -65,5 +66,5 @@ class FakeLink : Link {
         inboundChannel.trySend(bytes)
     }
 
-    fun sentFrames(): List<Frame> = synchronized(sent) { sentFrameList.toList() }
+    fun sentFrames(): List<Frame> = synchronized(sentFrameList) { sentFrameList.toList() }
 }
