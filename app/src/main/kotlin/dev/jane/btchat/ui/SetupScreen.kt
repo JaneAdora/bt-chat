@@ -1,6 +1,7 @@
 package dev.jane.btchat.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -65,6 +67,15 @@ private fun hasNotificationPermission(context: Context) =
 private fun isBatteryExempt(context: Context) =
     context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
 
+/** True once the user has denied a permission and checked "don't ask again," so the system dialog won't reappear. */
+private fun isPermanentlyDenied(context: Context, permission: String): Boolean {
+    val activity = context as? Activity ?: return false
+    return !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+}
+
+private fun appSettingsIntent(context: Context) =
+    Intent(SystemSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+
 @Composable
 fun SetupScreen(app: App, onDone: () -> Unit) {
     val context = LocalContext.current
@@ -73,12 +84,18 @@ fun SetupScreen(app: App, onDone: () -> Unit) {
 
     var bluetoothGranted by remember { mutableStateOf(ChatService.hasBluetoothPermission(context)) }
     var notificationsGranted by remember { mutableStateOf(hasNotificationPermission(context)) }
+    var bluetoothPermanentlyDenied by rememberSaveable { mutableStateOf(false) }
+    var notificationsPermanentlyDenied by rememberSaveable { mutableStateOf(false) }
     var batteryExempt by remember { mutableStateOf(isBatteryExempt(context)) }
     var devices by remember { mutableStateOf<List<BondedDevice>>(emptyList()) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        bluetoothGranted = ChatService.hasBluetoothPermission(context)
-        notificationsGranted = hasNotificationPermission(context)
+    val bluetoothPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        bluetoothGranted = granted
+        bluetoothPermanentlyDenied = !granted && isPermanentlyDenied(context, Manifest.permission.BLUETOOTH_CONNECT)
+    }
+    val notificationsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsGranted = granted
+        notificationsPermanentlyDenied = !granted && isPermanentlyDenied(context, Manifest.permission.POST_NOTIFICATIONS)
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -87,7 +104,11 @@ fun SetupScreen(app: App, onDone: () -> Unit) {
                 bluetoothGranted = ChatService.hasBluetoothPermission(context)
                 notificationsGranted = hasNotificationPermission(context)
                 batteryExempt = isBatteryExempt(context)
-                if (bluetoothGranted) devices = BondedDevices.list(context)
+                if (bluetoothGranted) {
+                    devices = BondedDevices.list(context)
+                    bluetoothPermanentlyDenied = false
+                }
+                if (notificationsGranted) notificationsPermanentlyDenied = false
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -128,17 +149,34 @@ fun SetupScreen(app: App, onDone: () -> Unit) {
 
         SetupCard(title = "Permissions") {
             Text(
-                if (bluetoothGranted) "Nearby devices: allowed" else "Nearby devices lets the app talk to the paired phone.",
+                when {
+                    bluetoothGranted -> "Nearby devices: allowed"
+                    bluetoothPermanentlyDenied -> "Nearby devices was turned off in system settings. Turn it back on there."
+                    else -> "Nearby devices lets the app talk to the paired phone."
+                },
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (!bluetoothGranted) {
+                if (bluetoothPermanentlyDenied) {
+                    OutlinedButton(onClick = { context.startActivity(appSettingsIntent(context)) }) { Text("Open app settings") }
+                } else {
+                    Button(onClick = { bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT) }) { Text("Allow") }
+                }
+            }
             Text(
-                if (notificationsGranted) "Notifications: allowed" else "Notifications show new messages when the app is closed.",
+                when {
+                    notificationsGranted -> "Notifications: allowed"
+                    notificationsPermanentlyDenied -> "Notifications were turned off in system settings. Turn them back on there."
+                    else -> "Notifications show new messages when the app is closed."
+                },
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (!bluetoothGranted || !notificationsGranted) {
-                Button(onClick = {
-                    permissionLauncher.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS))
-                }) { Text("Allow") }
+            if (!notificationsGranted) {
+                if (notificationsPermanentlyDenied) {
+                    OutlinedButton(onClick = { context.startActivity(appSettingsIntent(context)) }) { Text("Open app settings") }
+                } else {
+                    Button(onClick = { notificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("Allow") }
+                }
             }
         }
 
@@ -218,7 +256,7 @@ fun SetupScreen(app: App, onDone: () -> Unit) {
                     app.settings.setColor(color)
                     app.settings.setActivePeer(peer)
                     if (app.db.peers().get(peer) == null) {
-                        app.db.peers().upsert(PeerEntity(peer, deviceName, "#3F3F3F", 0L))
+                        app.db.peers().upsert(PeerEntity(peer, deviceName, DefaultPeerColor, 0L))
                     }
                     ChatService.start(context)
                     onDone()

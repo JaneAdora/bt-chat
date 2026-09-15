@@ -19,6 +19,9 @@ val AccentPalette = listOf(
     "#1F5F3F", "#8A3B12", "#2E4A8F", "#6B2D5C", "#8C6A00", "#0F6E7A", "#7A1F1F", "#3F3F3F",
 )
 
+/** Placeholder color for a newly added peer, until they send their own via Hello. */
+val DefaultPeerColor = AccentPalette.last()
+
 fun parseHex(hex: String): Color =
     runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color(0xFF1F5F3F))
 
