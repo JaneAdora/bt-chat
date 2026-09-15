@@ -60,4 +60,7 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE peer = :peer")
     suspend fun clear(peer: String)
+
+    @Query("DELETE FROM messages WHERE id = :id AND peer = :peer")
+    suspend fun delete(id: Long, peer: String)
 }
