@@ -265,7 +265,7 @@ class ChatEngineTest {
     @Test
     fun `queued photo is sent with its bytes and dimensions`() = runBlocking {
         val jpeg = ByteArray(700) { (it * 3).toByte() }
-        val saved = photos.saveOutbound(21, jpeg, 1280, 720)
+        val saved = photos.saveOutbound(21, peer, jpeg, 1280, 720)
         db.messages().insert(
             queuedText(21, 10).copy(kind = Kind.PHOTO, text = null, photoPath = saved.photoPath, thumbPath = saved.thumbPath, photoWidth = 1280, photoHeight = 720)
         )

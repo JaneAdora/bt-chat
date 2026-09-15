@@ -5,10 +5,10 @@ interface PhotoStore {
     class Saved(val photoPath: String, val thumbPath: String, val width: Int, val height: Int)
 
     /** Store an already downscaled JPEG that this phone is about to send. */
-    suspend fun saveOutbound(id: Long, jpeg: ByteArray, width: Int, height: Int): Saved
+    suspend fun saveOutbound(id: Long, peer: String, jpeg: ByteArray, width: Int, height: Int): Saved
 
     /** Store a JPEG received from the peer, also exporting it to the gallery. */
-    suspend fun saveInbound(id: Long, jpeg: ByteArray): Saved
+    suspend fun saveInbound(id: Long, peer: String, jpeg: ByteArray): Saved
 
     suspend fun readOutbound(path: String): ByteArray
 

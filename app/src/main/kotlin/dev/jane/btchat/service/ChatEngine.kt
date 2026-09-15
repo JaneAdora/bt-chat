@@ -166,7 +166,7 @@ class ChatEngine(
             FrameType.PHOTO -> {
                 val body = Bodies.decodePhoto(frame.body)
                 if (db.messages().get(frame.id, p) == null) {
-                    val saved = photoStore.saveInbound(frame.id, body.jpeg)
+                    val saved = photoStore.saveInbound(frame.id, p, body.jpeg)
                     val message = inboundRow(frame.id, p, Kind.PHOTO, body.meta.ts, saved = saved)
                     if (db.messages().insert(message) != -1L) listener.onInbound(message)
                 }
