@@ -64,6 +64,14 @@ class AndroidPhotoStore(
         Unit
     }
 
+    override suspend fun deleteForPeer(peer: String) = withContext(Dispatchers.IO) {
+        val prefix = "${peer.replace(":", "")}-"
+        for (dir in listOf(photosDir, thumbsDir)) {
+            dir.listFiles { file -> file.name.startsWith(prefix) }?.forEach { it.delete() }
+        }
+        Unit
+    }
+
     private fun write(id: Long, peer: String, jpeg: ByteArray, width: Int, height: Int): PhotoStore.Saved {
         val name = "${peer.replace(":", "")}-$id.jpg"
         val photo = File(photosDir, name)

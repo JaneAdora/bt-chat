@@ -14,4 +14,7 @@ interface PhotoStore {
 
     /** Copy a stored photo into the device gallery (used by the viewer's Save button). */
     suspend fun exportToGallery(path: String)
+
+    /** Delete the on-disk photo and thumbnail files stored for this peer (used by Clear history). */
+    suspend fun deleteForPeer(peer: String)
 }

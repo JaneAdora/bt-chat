@@ -27,4 +27,9 @@ class FakePhotoStore(private val dir: File) : PhotoStore {
     override suspend fun exportToGallery(path: String) {
         exported += path
     }
+
+    override suspend fun deleteForPeer(peer: String) {
+        val prefix = "${peer.replace(":", "")}-"
+        dir.listFiles { file -> file.name.startsWith(prefix) }?.forEach { it.delete() }
+    }
 }
