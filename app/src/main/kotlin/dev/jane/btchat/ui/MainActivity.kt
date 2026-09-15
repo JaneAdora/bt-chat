@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -62,6 +63,7 @@ private data class SetupInfo(val nick: String?, val peer: String?)
 @Composable
 private fun Root(app: App, permissionTick: MutableIntState) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val info by remember {
         combine(app.settings.myNick, app.settings.activePeer) { nick, peer -> SetupInfo(nick, peer) }
     }.collectAsStateWithLifecycle(initialValue = null)
@@ -73,6 +75,17 @@ private fun Root(app: App, permissionTick: MutableIntState) {
     if (forceSetup || current.nick == null || peer == null || !hasPermission) {
         SetupScreen(app, onDone = { forceSetup = false; permissionTick.intValue++ })
     } else {
-        ChatScreen(app, peer, onChangePeer = { forceSetup = true })
+        ChatScreen(
+            app,
+            peer,
+            onChangePeer = {
+                // Clear the saved peer before dropping into Setup so backing out or a
+                // process restart doesn't fall back into the old peer's chat. The
+                // service's activePeer collector (ChatService.boot()) tears the link
+                // for the old peer down (engine.stop()) as soon as this lands.
+                scope.launch { app.settings.setActivePeer(null) }
+                forceSetup = true
+            },
+        )
     }
 }

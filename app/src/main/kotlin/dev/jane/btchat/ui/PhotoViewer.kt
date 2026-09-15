@@ -2,6 +2,7 @@ package dev.jane.btchat.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -24,7 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -32,6 +35,7 @@ import coil3.compose.AsyncImage
 import dev.jane.btchat.App
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.max
 
 @Composable
 fun PhotoViewer(app: App, path: String, onDismiss: () -> Unit) {
@@ -39,6 +43,7 @@ fun PhotoViewer(app: App, path: String, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -55,10 +60,27 @@ fun PhotoViewer(app: App, path: String, onDismiss: () -> Unit) {
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
+                    .onSizeChanged { containerSize = it }
+                    .pointerInput(Unit) {
+                        detectTapGestures(onDoubleTap = {
+                            scale = 1f
+                            offset = Offset.Zero
+                        })
+                    }
                     .pointerInput(Unit) {
                         detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            offset = if (scale == 1f) Offset.Zero else offset + pan
+                            val newScale = (scale * zoom).coerceIn(1f, 5f)
+                            val maxX = max(0f, (newScale - 1f) * containerSize.width / 2f)
+                            val maxY = max(0f, (newScale - 1f) * containerSize.height / 2f)
+                            scale = newScale
+                            offset = if (newScale == 1f) {
+                                Offset.Zero
+                            } else {
+                                Offset(
+                                    (offset.x + pan.x).coerceIn(-maxX, maxX),
+                                    (offset.y + pan.y).coerceIn(-maxY, maxY),
+                                )
+                            }
                         }
                     }
                     .graphicsLayer {
