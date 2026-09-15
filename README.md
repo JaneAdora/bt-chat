@@ -12,6 +12,7 @@ Design: `docs/superpowers/specs/2026-09-15-bt-chat-design.md`.
 The keystore lives in `keystore/release.jks` (gitignored). If it is missing:
 `op document get 'BT Chat release.jks' --vault=Dev --out-file keystore/release.jks`.
 Every install must be signed with this key or Android refuses the update.
+The application id `dev.jane.btchat` can never change after the first install either; changing the id or the keystore means uninstalling on both phones and losing history.
 
 ## Install on a phone over Wi-Fi (once per phone)
 

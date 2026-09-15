@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import dev.jane.btchat.App
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 class ChatService : Service() {
     companion object {
         const val ACTION_TOGGLE_STAY = "dev.jane.btchat.action.TOGGLE_STAY"
+        private const val TAG = "ChatService"
 
         fun start(context: Context) {
             if (!hasBluetoothPermission(context)) return
@@ -67,15 +69,28 @@ class ChatService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        try {
+            startForeground(
+                Notifications.ID_SERVICE,
+                Notifications.service(this, "Starting", true),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            )
+        } catch (e: Exception) {
+            // On Android 14+ startForeground for connectedDevice can itself throw
+            // SecurityException when no qualifying permission is granted, and a
+            // START_STICKY restart can hit ForegroundServiceStartNotAllowedException.
+            // Either way the service cannot run without a live notification.
+            if (e is SecurityException || e is android.app.ForegroundServiceStartNotAllowedException) {
+                Log.w(TAG, "startForeground failed", e)
+                stopSelf()
+                return
+            }
+            throw e
+        }
         if (!hasBluetoothPermission(this)) {
             stopSelf()
             return
         }
-        startForeground(
-            Notifications.ID_SERVICE,
-            Notifications.service(this, "Starting", true),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-        )
         LinkStateHolder.serviceRunning.value = true
         scope.launch { boot() }
     }

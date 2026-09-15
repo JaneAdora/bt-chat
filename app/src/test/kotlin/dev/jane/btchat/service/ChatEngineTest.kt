@@ -263,6 +263,22 @@ class ChatEngineTest {
     }
 
     @Test
+    fun `photo that fails to save still acks and leaves a text placeholder`() = runBlocking {
+        startAndConnect()
+        photos.failInbound = true
+        val jpeg = ByteArray(500) { it.toByte() }
+        link.receive(Frames.photo(10, PhotoMeta(ts = 5L, w = 1280, h = 960), jpeg))
+        awaitUntil(what = "ack") { sentOfType(FrameType.ACK).any { it.id == 10L } }
+        assertEquals(LinkState.Connected::class, link.state.value::class)
+        val m = db.messages().get(10, peer)!!
+        assertEquals(Kind.TEXT, m.kind)
+        assertEquals("Photo could not be saved", m.text)
+        assertEquals(peer, m.peer)
+        assertEquals(5L, m.createdAt)
+        assertEquals(Status.RECEIVED, m.status)
+    }
+
+    @Test
     fun `queued photo is sent with its bytes and dimensions`() = runBlocking {
         val jpeg = ByteArray(700) { (it * 3).toByte() }
         val saved = photos.saveOutbound(21, peer, jpeg, 1280, 720)

@@ -340,6 +340,9 @@ class BluetoothLink(
             }
         }
         conn.socket.closeQuietly()
+        // Drop any tail bytes left in the channel from the dead session; feeding them
+        // to the next session's fresh FrameReader would corrupt its first frame.
+        while (inboundChannel.tryReceive().isSuccess) { }
         val next = publish ?: return
         _state.value = next
         if (next is LinkState.Searching && dialJob?.isActive != true) {

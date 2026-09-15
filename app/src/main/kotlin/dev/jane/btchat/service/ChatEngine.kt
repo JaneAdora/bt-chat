@@ -166,8 +166,16 @@ class ChatEngine(
             FrameType.PHOTO -> {
                 val body = Bodies.decodePhoto(frame.body)
                 if (db.messages().get(frame.id, p) == null) {
-                    val saved = photoStore.saveInbound(frame.id, p, body.jpeg)
-                    val message = inboundRow(frame.id, p, Kind.PHOTO, body.meta.ts, saved = saved)
+                    val message = try {
+                        val saved = photoStore.saveInbound(frame.id, p, body.jpeg)
+                        inboundRow(frame.id, p, Kind.PHOTO, body.meta.ts, saved = saved)
+                    } catch (e: IOException) {
+                        // Undecodable bytes must not drop the link and wedge the queue behind
+                        // this photo forever; store a placeholder so the user sees something
+                        // and still ACK so the sender's queue advances.
+                        Log.w(TAG, "saveInbound failed for $p/${frame.id}", e)
+                        inboundRow(frame.id, p, Kind.TEXT, body.meta.ts, text = "Photo could not be saved")
+                    }
                     if (db.messages().insert(message) != -1L) listener.onInbound(message)
                 }
                 sendFrame(Frames.ack(frame.id))

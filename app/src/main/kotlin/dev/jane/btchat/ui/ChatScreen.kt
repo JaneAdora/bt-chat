@@ -153,7 +153,7 @@ fun ChatScreen(app: App, peer: String, onChangePeer: () -> Unit) {
     }
 
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(0)
+        if (messages.isNotEmpty() && listState.firstVisibleItemIndex == 0) listState.animateScrollToItem(0)
     }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -251,32 +251,39 @@ private fun StatusStrip(
 ) {
     val colors = MaterialTheme.colorScheme
     val (label, dot) = when {
-        state is LinkState.Connected && !batteryExempt -> "Connected to $nick. Allow unrestricted battery in Settings to stay connected." to colors.primary
         state is LinkState.Connected -> "Connected to $nick" to colors.primary
         state is LinkState.Searching -> "Looking for $nick..." to colors.onSurfaceVariant
         !serviceRunning && !stayConnected -> "Stay connected is off" to colors.outline
         !serviceRunning -> "Starting..." to colors.onSurfaceVariant
         else -> "Bluetooth is off" to colors.error
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(colors.surfaceVariant)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(dot, CircleShape),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-        if (serviceRunning && state is LinkState.Off) {
-            TextButton(onClick = onOpenBluetooth) { Text("Turn on") }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(dot, CircleShape),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+            if (serviceRunning && state is LinkState.Off) {
+                TextButton(onClick = onOpenBluetooth) { Text("Turn on") }
+            }
+            if (!stayConnected && state !is LinkState.Connected) {
+                Switch(checked = false, onCheckedChange = { onStayConnected(true) })
+            }
         }
-        if (!stayConnected && state !is LinkState.Connected) {
-            Switch(checked = false, onCheckedChange = { onStayConnected(true) })
+        if (!batteryExempt) {
+            Text(
+                "Allow unrestricted battery in Settings to stay connected.",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+            )
         }
     }
 }

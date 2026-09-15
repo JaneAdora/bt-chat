@@ -58,7 +58,7 @@ store     Room database + DataStore settings + photo files on disk.
 - Tie-break when two live sockets exist to the same peer: each app generates a random 64-bit node id once at install and keeps it in settings. Immediately after a socket opens, and before any frame, each side writes its node id as 8 big-endian bytes and reads the peer's. The side with the lower node id keeps the socket it dialed and closes the accepted one; the higher side does the opposite. Both apply the rule, so exactly one socket survives. Adapter addresses are not used because Android 14 hides them from apps. The handshake has a 5 s timeout so a stalled peer cannot hang the loops.
 - Dial backoff: 2 s, 5 s, 15 s, 30 s, then every 30 s. Resets on any successful connection.
 - Keepalive: a 5 s tick checks idle time. Send PING after 20 s with nothing received; drop the link after 35 s with nothing received. Any inbound bytes reset the clock. RFCOMM does not always notice a dropped link promptly.
-- Exposes: `state: StateFlow<LinkState>` (Off, Searching, Connected(peerAddress)), `inbound: Flow<ByteArray>` of raw bytes, `send(bytes)` which suspends until the bytes are written or throws on disconnect.
+- Exposes: `state: StateFlow<LinkState>` (Off, Searching, Connected(peerAddress, session)), `inbound: Flow<ByteArray>` of raw bytes, `send(bytes)` which suspends until the bytes are written or throws on disconnect. session increments on every adopted socket so a tie-break swap is a distinct emission.
 - Knows nothing about messages or frames.
 
 ### 4.2 Protocol

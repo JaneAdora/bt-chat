@@ -5,6 +5,9 @@ import java.io.File
 class FakePhotoStore(private val dir: File) : PhotoStore {
     val exported = mutableListOf<String>()
 
+    /** When true, saveInbound throws IOException instead of saving, to simulate undecodable bytes. */
+    var failInbound = false
+
     init {
         dir.mkdirs()
     }
@@ -17,6 +20,7 @@ class FakePhotoStore(private val dir: File) : PhotoStore {
     }
 
     override suspend fun saveInbound(id: Long, peer: String, jpeg: ByteArray): PhotoStore.Saved {
+        if (failInbound) throw java.io.IOException("undecodable bytes")
         val saved = saveOutbound(id, peer, jpeg, 1280, 960)
         exported += saved.photoPath
         return saved
