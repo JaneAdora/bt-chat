@@ -2,6 +2,7 @@ package dev.jane.btchat.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.os.PowerManager
 import android.provider.Settings as SystemSettings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -62,6 +63,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
@@ -81,11 +85,15 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+private fun isBatteryExempt(context: android.content.Context) =
+    context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(app: App, peer: String, onChangePeer: () -> Unit) {
     val vm: ChatViewModel = viewModel(key = "chat-$peer", factory = ChatViewModel.factory(app, peer))
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val messages by vm.messages.collectAsStateWithLifecycle()
     val peerInfo by vm.peerInfo.collectAsStateWithLifecycle()
     val linkState by vm.linkState.collectAsStateWithLifecycle()
@@ -94,6 +102,7 @@ fun ChatScreen(app: App, peer: String, onChangePeer: () -> Unit) {
     val stayConnected by vm.stayConnected.collectAsStateWithLifecycle()
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var viewerPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var batteryExempt by remember { mutableStateOf(isBatteryExempt(context)) }
 
     val peerNick = peerInfo?.nick ?: "the other phone"
     val peerColor = parseHex(peerInfo?.color ?: "#3F3F3F")
@@ -102,6 +111,14 @@ fun ChatScreen(app: App, peer: String, onChangePeer: () -> Unit) {
         ChatVisibility.visiblePeer.value = peer
         Notifications.cancelMessage(context)
         onDispose { if (ChatVisibility.visiblePeer.value == peer) ChatVisibility.visiblePeer.value = null }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) batteryExempt = isBatteryExempt(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Spec section 7: if the saved phone was unpaired in system settings, fall back to setup.
@@ -124,9 +141,10 @@ fun ChatScreen(app: App, peer: String, onChangePeer: () -> Unit) {
     val newestFirst = remember(messages) { messages.asReversed() }
 
     LaunchedEffect(listState, messages) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.key } }
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.key } to (listState.firstVisibleItemIndex == 0) }
             .distinctUntilChanged()
-            .collect { keys ->
+            .collect { (keys, atBottom) ->
+                if (!atBottom) return@collect
                 val visible = keys.toSet()
                 vm.markRead(
                     messages.filter { it.direction == Direction.IN && it.status == Status.RECEIVED && visible.contains(it.id) }.map { it.id }
@@ -183,7 +201,7 @@ fun ChatScreen(app: App, peer: String, onChangePeer: () -> Unit) {
                 stayConnected = stayConnected,
                 onStayConnected = vm::setStayConnected,
                 onOpenBluetooth = { context.startActivity(Intent(SystemSettings.ACTION_BLUETOOTH_SETTINGS)) },
-                batteryExempt = context.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName),
+                batteryExempt = batteryExempt,
             )
             LazyColumn(
                 state = listState,
@@ -257,7 +275,7 @@ private fun StatusStrip(
         if (serviceRunning && state is LinkState.Off) {
             TextButton(onClick = onOpenBluetooth) { Text("Turn on") }
         }
-        if (!stayConnected) {
+        if (!stayConnected && state !is LinkState.Connected) {
             Switch(checked = false, onCheckedChange = { onStayConnected(true) })
         }
     }
