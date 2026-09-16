@@ -1,3 +1,4 @@
 <resources>
-    <color name="ic_launcher_background">#1F5F3F</color>
+    <!-- Lavender that matches One UI themed icon tiles; the glyph is near-black on top. -->
+    <color name="ic_launcher_background">#A98BDF</color>
 </resources>
