@@ -38,3 +38,7 @@ tap Done. The status strip goes to "Connected to <name>" within a few seconds.
 ## Logs
 
 `~/android-sdk/platform-tools/adb -s <serial> logcat -s BluetoothLink:V ChatService:V AndroidRuntime:E`
+
+## License
+
+MIT. See LICENSE.
