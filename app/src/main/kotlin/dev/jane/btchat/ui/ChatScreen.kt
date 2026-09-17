@@ -1,5 +1,7 @@
 package dev.jane.btchat.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
@@ -10,7 +12,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -322,8 +326,10 @@ private fun Composer(onSend: (String) -> Unit, onPickPhoto: () -> Unit, onCamera
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(message: MessageEntity, myColor: Color, peerColor: Color, onPhotoClick: () -> Unit) {
+    val context = LocalContext.current
     val mine = message.direction == Direction.OUT
     val accent = if (mine) myColor else peerColor
     val dark = LocalIsDark.current
@@ -341,6 +347,15 @@ private fun MessageBubble(message: MessageEntity, myColor: Color, peerColor: Col
                 .clip(shape)
                 .background(fill)
                 .border(1.dp, edge, shape)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {
+                        val text = message.text ?: return@combinedClickable
+                        val clipboard = context.getSystemService(ClipboardManager::class.java)
+                        clipboard.setPrimaryClip(ClipData.newPlainText("BT Chat message", text))
+                        Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                    },
+                )
                 .padding(10.dp),
         ) {
             if (message.kind == Kind.PHOTO && message.thumbPath != null) {
@@ -358,7 +373,7 @@ private fun MessageBubble(message: MessageEntity, myColor: Color, peerColor: Col
                         .clickable(onClick = onPhotoClick),
                 )
             } else {
-                Text(message.text ?: "", style = MaterialTheme.typography.bodyLarge)
+                Text(linkify(message.text ?: "", MaterialTheme.colorScheme.primary), style = MaterialTheme.typography.bodyLarge)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(timeOf(message.createdAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
