@@ -141,7 +141,7 @@ fun SetupScreen(app: App, onDone: () -> Unit) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Set up BT Chat", style = MaterialTheme.typography.headlineMedium)
+        Text("Set up Cat Chat", style = MaterialTheme.typography.headlineMedium)
         Text(
             "Messages travel over Bluetooth only. Pair the two phones once in system settings, then pick the other phone here.",
             style = MaterialTheme.typography.bodyMedium,
@@ -182,7 +182,7 @@ fun SetupScreen(app: App, onDone: () -> Unit) {
 
         SetupCard(title = "Background") {
             Text(
-                if (batteryExempt) "Battery optimization is off for BT Chat, so it can stay connected."
+                if (batteryExempt) "Battery optimization is off for Cat Chat, so it can stay connected."
                 else "Samsung's battery manager stops background apps. Turn optimization off so messages arrive while the screen is off.",
                 style = MaterialTheme.typography.bodyMedium,
             )

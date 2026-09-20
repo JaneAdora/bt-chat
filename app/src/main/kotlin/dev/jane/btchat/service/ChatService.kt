@@ -136,7 +136,7 @@ class ChatService : Service() {
         scope.launch {
             combine(link.state, peerNick, app.settings.stayConnected, mismatch) { state, nick, stay, bad ->
                 val title = when {
-                    bad -> "Version mismatch, update BT Chat on both phones"
+                    bad -> "Version mismatch, update Cat Chat on both phones"
                     state is LinkState.Connected -> "Connected to $nick"
                     state is LinkState.Searching -> "Looking for $nick..."
                     else -> "Bluetooth is off"

@@ -352,7 +352,7 @@ private fun MessageBubble(message: MessageEntity, myColor: Color, peerColor: Col
                     onLongClick = {
                         val text = message.text ?: return@combinedClickable
                         val clipboard = context.getSystemService(ClipboardManager::class.java)
-                        clipboard.setPrimaryClip(ClipData.newPlainText("BT Chat message", text))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Cat Chat message", text))
                         Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                     },
                 )

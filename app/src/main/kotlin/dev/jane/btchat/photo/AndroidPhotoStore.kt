@@ -14,7 +14,7 @@ import java.io.IOException
 /**
  * Photos live in the app's private files dir: photos/<peer>-<id>.jpg and thumbs/<peer>-<id>.jpg.
  * The peer address is part of the file name because message ids are only unique per peer.
- * Inbound photos are also written to the gallery album "BT Chat" via MediaStore.
+ * Inbound photos are also written to the gallery album "Cat Chat" via MediaStore.
  */
 class AndroidPhotoStore(
     private val context: Context,
@@ -46,7 +46,7 @@ class AndroidPhotoStore(
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, "btchat-${file.nameWithoutExtension}.jpg")
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/BT Chat")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Cat Chat")
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
